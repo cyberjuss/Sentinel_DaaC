@@ -1,0 +1,61 @@
+id: /subscriptions/a92bfee7-ad40-4b5f-83cd-db3ca90504d8/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/test-workspace/providers/Microsoft.SecurityInsights/alertRules/487af61d-eb6f-4925-bb0a-5f2994f6dee3
+name: 487af61d-eb6f-4925-bb0a-5f2994f6dee3
+type: Microsoft.SecurityInsights/alertRules
+etag: '"eb04251c-0000-0100-0000-6876692c0000"'
+kind: Scheduled
+query: "DeviceEvents \n| where ActionType in (\"CreateRemoteThreadApiCall\", \"QueueUserApcRemoteApiCall\"\
+  , \"SetThreadContextRemoteApiCall\")\n| where InitiatingProcessFileName in~ (\"\
+  winword.exe\", \"excel.exe\", \"powerpnt.exe\")\n| where InitiatingProcessCommandLine\
+  \ !contains \"/dde\"\n| where not(InitiatingProcessCommandLine has_any (\".docx\"\
+  , \"dotx\",\".xlsx\", \".xltx\", \".pptx\")) // These files can't contain macros.\n\
+  // Enable the line below if the results are too noisy.\n//| where InitiatingProcessCommandLine\
+  \ has_any (\".doc\", \".wbk\", \".docm\", \".dot\", \".dotm\" \".xls\", \".xlsm\"\
+  , \".xltm\", \".xla\",\".xll\", \".xlam\", \".ppt\", \".pptm\", \".pot\", \".potm\"\
+  , \".ppsm\", \".sldm\") \n"
+query_frequency: PT1H
+query_period: PT1H
+severity: Medium
+trigger_operator: GreaterThan
+trigger_threshold: 0
+event_grouping_settings:
+  aggregation_kind: SingleAlert
+entity_mappings:
+- entity_type: Account
+  field_mappings:
+  - identifier: Sid
+    column_name: InitiatingProcessAccountSid
+  - identifier: Name
+    column_name: InitiatingProcessAccountName
+  - identifier: NTDomain
+    column_name: InitiatingProcessAccountDomain
+- entity_type: Host
+  field_mappings:
+  - identifier: FullName
+    column_name: DeviceName
+- entity_type: Process
+  field_mappings:
+  - identifier: CommandLine
+    column_name: InitiatingProcessCommandLine
+alert_rule_template_name: a4d8e681-6f30-440a-a2f3-c312bc1389d0
+template_version: 1.0.0
+description: |-
+  This query detects process injections using CreateRemoteThread, QueueUserAPC or SetThread context APIs, originating from an Office process (only Word/Excel/PowerPoint)
+  that might contains macros. Performing process injection from a macro is a common technique by attackers to escape out of the Office process into something
+  longer running.
+display_name: Suspicious Process Injection from Office application
+enabled: true
+last_modified_utc: '2025-07-15T14:43:55.214749Z'
+suppression_duration: PT1H
+suppression_enabled: false
+tactics:
+- Execution
+incident_configuration:
+  create_incident: true
+  grouping_configuration:
+    enabled: false
+    reopen_closed_incident: false
+    lookback_duration: PT5H
+    matching_method: AllEntities
+    group_by_entities: []
+    group_by_alert_details: []
+    group_by_custom_details: []

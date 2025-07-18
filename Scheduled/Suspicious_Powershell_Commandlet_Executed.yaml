@@ -1,0 +1,84 @@
+id: /subscriptions/a92bfee7-ad40-4b5f-83cd-db3ca90504d8/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/test-workspace/providers/Microsoft.SecurityInsights/alertRules/c9684b77-14a2-4bc3-a69f-eb18a9acc5e9
+name: c9684b77-14a2-4bc3-a69f-eb18a9acc5e9
+type: Microsoft.SecurityInsights/alertRules
+etag: '"a60507b0-0000-0100-0000-687896d40000"'
+kind: Scheduled
+query: |
+  // Adjust the list of suspicious commandlets as needed
+  let SuspiciousPowerShellCommandList = dynamic(["Get-ADUserResultantPasswordPolicy",
+    "Get-DomainPolicy",
+    "Get-DomainUser",
+    "Get-DomainComputer"
+    "Get-DomainController",
+    "Get-DomainGroup",
+    "Get-DomainTrust",
+    "Get-ADTrust",
+    "Get-ForestTrust"
+    ]);
+  DeviceEvents
+  | where ActionType == "PowerShellCommand"
+  | extend Commandlet = tostring(parse_json(AdditionalFields).Command)
+  | where Commandlet has_any (SuspiciousPowerShellCommandList)
+  | project TimeGenerated, DeviceName, LocalIP, InitiatingProcessAccountUpn, InitiatingProcessId, InitiatingProcessFileName, InitiatingProcessFolderPath, InitiatingProcessCommandLine
+  | extend Username = tostring(split(InitiatingProcessAccountUpn, '@')[0]), UPNSuffix = tostring(split(InitiatingProcessAccountUpn, '@')[1])
+  | extend DvcHostname = tostring(split(DeviceName, '.')[0]), DvcDomain = tostring(strcat_array(array_slice(split(DeviceName, '.'), 1, -1), '.'))
+query_frequency: PT1H
+query_period: PT1H
+severity: Medium
+trigger_operator: GreaterThan
+trigger_threshold: 0
+event_grouping_settings:
+  aggregation_kind: AlertPerResult
+entity_mappings:
+- entity_type: Host
+  field_mappings:
+  - identifier: FullName
+    column_name: DeviceName
+  - identifier: HostName
+    column_name: DvcHostname
+  - identifier: DnsDomain
+    column_name: DvcDomain
+- entity_type: IP
+  field_mappings:
+  - identifier: Address
+    column_name: LocalIP
+- entity_type: Account
+  field_mappings:
+  - identifier: Name
+    column_name: Username
+  - identifier: UPNSuffix
+    column_name: UPNSuffix
+- entity_type: Process
+  field_mappings:
+  - identifier: ProcessId
+    column_name: InitiatingProcessId
+  - identifier: CommandLine
+    column_name: InitiatingProcessCommandLine
+alert_details_override:
+  alert_display_name_format: Suspicious PowerShell Commandlet Executed on {{DvcHostname}}
+    ({{LocalIP}}) by ({{InitiatingProcessAccountUpn}})
+  alert_description_format: 'Suspicious PowerShell Commandlet by Process ''{{InitiatingProcessFileName}}''
+    ProcessId: ''{{InitiatingProcessId}}'' with commandline {{InitiatingProcessCommandLine}}
+    was executed.'
+alert_rule_template_name: b5153fb3-ada9-4ce4-9131-79c771efb50d
+template_version: 1.0.1
+description: This analytic rule detects when a suspicious PowerShell commandlet is
+  executed on a host. Threat actors often use PowerShell to execute commands and scripts
+  to move laterally, escalate privileges, and exfiltrate data.
+display_name: Suspicious Powershell Commandlet Executed
+enabled: true
+last_modified_utc: '2025-07-17T06:23:12.630738Z'
+suppression_duration: PT1H
+suppression_enabled: false
+tactics:
+- Execution
+incident_configuration:
+  create_incident: true
+  grouping_configuration:
+    enabled: false
+    reopen_closed_incident: false
+    lookback_duration: PT5H
+    matching_method: AllEntities
+    group_by_entities: []
+    group_by_alert_details: []
+    group_by_custom_details: []

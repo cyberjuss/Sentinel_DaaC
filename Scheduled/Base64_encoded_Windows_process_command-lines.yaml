@@ -1,0 +1,70 @@
+id: /subscriptions/a92bfee7-ad40-4b5f-83cd-db3ca90504d8/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/test-workspace/providers/Microsoft.SecurityInsights/alertRules/69b3e4f9-dd4a-4f97-83b0-6b840b29e4a3
+name: 69b3e4f9-dd4a-4f97-83b0-6b840b29e4a3
+type: Microsoft.SecurityInsights/alertRules
+etag: '"eb04a41c-0000-0100-0000-6876692e0000"'
+kind: Scheduled
+query: |
+  let ProcessCreationEvents=(union isfuzzy=true
+  (SecurityEvent
+  | where EventID==4688
+  | where isnotempty(CommandLine)
+  | summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated), count() by Computer, Account = SubjectUserName, AccountDomain = SubjectDomainName,
+  FileName = Process, CommandLine, ParentProcessName
+  ),
+  (WindowsEvent
+  | where EventID==4688
+  | where EventData has "TVqQAAMAAAAEAAA"
+  | extend CommandLine = tostring(EventData.CommandLine)
+  | where isnotempty(CommandLine)
+  | extend ParentProcessName = tostring(EventData.ParentProcessName)
+  | extend NewProcessName = tostring(EventData.NewProcessName)
+  | extend Process=tostring(split(NewProcessName, '\\')[-1])
+  | extend SubjectUserName = tostring(EventData.SubjectUserName)
+  | extend SubjectDomainName = tostring(EventData.SubjectDomainName)
+  | summarize StartTimeUtc = min(TimeGenerated), EndTimeUtc = max(TimeGenerated), count() by Computer, Account = SubjectUserName, AccountDomain = SubjectDomainName,
+  FileName = Process, CommandLine, ParentProcessName));
+  ProcessCreationEvents
+  | where CommandLine contains "TVqQAAMAAAAEAAA"
+  | extend HostName = iif(Computer has '.',substring(Computer,0,indexof(Computer,'.')),Computer) , DnsDomain = iif(Computer has '.',substring(Computer,indexof(Computer,'.')+1),'')
+query_frequency: P1D
+query_period: P1D
+severity: Medium
+trigger_operator: GreaterThan
+trigger_threshold: 0
+event_grouping_settings:
+  aggregation_kind: SingleAlert
+entity_mappings:
+- entity_type: Account
+  field_mappings:
+  - identifier: Name
+    column_name: Account
+- entity_type: Host
+  field_mappings:
+  - identifier: FullName
+    column_name: Computer
+  - identifier: HostName
+    column_name: HostName
+  - identifier: DnsDomain
+    column_name: DnsDomain
+alert_rule_template_name: ca67c83e-7fff-4127-a3e3-1af66d6d4cad
+template_version: 1.1.4
+description: Identifies instances of a base64-encoded PE file header seen in the process
+  command line parameter.
+display_name: Base64 encoded Windows process command-lines
+enabled: true
+last_modified_utc: '2025-07-15T14:43:55.238339Z'
+suppression_duration: PT1H
+suppression_enabled: false
+tactics:
+- Execution
+- DefenseEvasion
+incident_configuration:
+  create_incident: true
+  grouping_configuration:
+    enabled: false
+    reopen_closed_incident: false
+    lookback_duration: PT5H
+    matching_method: AllEntities
+    group_by_entities: []
+    group_by_alert_details: []
+    group_by_custom_details: []

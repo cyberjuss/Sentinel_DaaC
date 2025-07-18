@@ -1,0 +1,101 @@
+id: /subscriptions/a92bfee7-ad40-4b5f-83cd-db3ca90504d8/resourceGroups/test/providers/Microsoft.OperationalInsights/workspaces/test-workspace/providers/Microsoft.SecurityInsights/alertRules/e3a2deea-3588-41f9-88e0-69e25a106f58
+name: e3a2deea-3588-41f9-88e0-69e25a106f58
+type: Microsoft.SecurityInsights/alertRules
+etag: '"24054f13-0000-0100-0000-687709bf0000"'
+kind: Scheduled
+query: |
+  let regexEmpire = tostring(toscalar(externaldata(cmdlets:string)[@"https://raw.githubusercontent.com/Azure/Azure-Sentinel/master/Sample%20Data/Feeds/EmpireCommandString.txt"] with (format="txt")));
+  (union isfuzzy=true
+   (SecurityEvent
+  | where EventID == 4688
+  //consider filtering on filename if perf issues occur
+  //where FileName in~ ("powershell.exe","powershell_ise.exe","pwsh.exe")
+  | where not(ParentProcessName has_any ('gc_worker.exe', 'gc_service.exe'))
+  | where CommandLine has "-encodedCommand"
+  | parse kind=regex flags=i CommandLine with * "-EncodedCommand " encodedCommand
+  | extend encodedCommand = iff(encodedCommand has " ", tostring(split(encodedCommand, " ")[0]), encodedCommand)
+  // Note: currently the base64_decode_tostring function is limited to supporting UTF8
+  | extend decodedCommand = translate('\0','', base64_decode_tostring(substring(encodedCommand, 0, strlen(encodedCommand) -  (strlen(encodedCommand) %8)))), encodedCommand, CommandLine , strlen(encodedCommand)
+  | extend EfectiveCommand = iff(isnotempty(encodedCommand), decodedCommand, CommandLine)
+  | where EfectiveCommand matches regex regexEmpire
+  | project timestamp = TimeGenerated, Computer, SubjectUserName, SubjectDomainName, FileName = Process, EfectiveCommand, decodedCommand, encodedCommand, CommandLine, ParentProcessName
+  | extend HostName = split(Computer, '.', 0)[0], DnsDomain = strcat_array(array_slice(split(Computer, '.'), 1, -1), '.')
+  ),
+  (WindowsEvent
+  | where EventID == 4688
+  | where EventData has_any ("-encodedCommand", "powershell.exe","powershell_ise.exe","pwsh.exe")
+  | where not(EventData has_any ('gc_worker.exe', 'gc_service.exe'))
+  //consider filtering on filename if perf issues occur
+  //extend NewProcessName = tostring(EventData.NewProcessName)
+  //extend Process=tostring(split(NewProcessName, '\\')[-1])
+  //FileName = Process
+  //where FileName in~ ("powershell.exe","powershell_ise.exe","pwsh.exe")
+  | extend ParentProcessName = tostring(EventData.ParentProcessName)
+  | where not(ParentProcessName has_any ('gc_worker.exe', 'gc_service.exe'))
+  | extend CommandLine = tostring(EventData.CommandLine)
+  | where CommandLine has "-encodedCommand"
+  | parse kind=regex flags=i CommandLine with * "-EncodedCommand " encodedCommand
+  | extend encodedCommand = iff(encodedCommand has " ", tostring(split(encodedCommand, " ")[0]), encodedCommand)
+  // Note: currently the base64_decode_tostring function is limited to supporting UTF8
+  | extend decodedCommand = translate('\0','', base64_decode_tostring(substring(encodedCommand, 0, strlen(encodedCommand) -  (strlen(encodedCommand) %8)))), encodedCommand, CommandLine , strlen(encodedCommand)
+  | extend EfectiveCommand = iff(isnotempty(encodedCommand), decodedCommand, CommandLine)
+  | where EfectiveCommand matches regex regexEmpire
+  | extend SubjectUserName = tostring(EventData.SubjectUserName)
+  | extend SubjectDomainName = tostring(EventData.SubjectDomainName)
+  | extend NewProcessName = tostring(EventData.NewProcessName)
+  | extend Process=tostring(split(NewProcessName, '\\')[-1])
+  | project timestamp = TimeGenerated, Computer, SubjectUserName, SubjectDomainName, FileName = Process, EfectiveCommand, decodedCommand, encodedCommand, CommandLine, ParentProcessName
+  | extend HostName = split(Computer, '.', 0)[0], DnsDomain = strcat_array(array_slice(split(Computer, '.'), 1, -1), '.')
+  ))
+query_frequency: PT12H
+query_period: PT12H
+severity: Medium
+trigger_operator: GreaterThan
+trigger_threshold: 0
+event_grouping_settings:
+  aggregation_kind: SingleAlert
+entity_mappings:
+- entity_type: Account
+  field_mappings:
+  - identifier: Name
+    column_name: SubjectUserName
+  - identifier: NTDomain
+    column_name: SubjectDomainName
+- entity_type: Host
+  field_mappings:
+  - identifier: HostName
+    column_name: HostName
+  - identifier: DnsDomain
+    column_name: DnsDomain
+alert_rule_template_name: ef88eb96-861c-43a0-ab16-f3835a97c928
+template_version: 1.3.1
+description: This query identifies use of PowerShell Empire's cmdlets within the command
+  line data of the PowerShell process, indicating potential use of the post-exploitation
+  tool.
+display_name: Powershell Empire Cmdlets Executed in Command Line
+enabled: true
+last_modified_utc: '2025-07-16T02:09:01.892399Z'
+suppression_duration: PT1H
+suppression_enabled: false
+tactics:
+- Collection
+- CommandAndControl
+- CredentialAccess
+- DefenseEvasion
+- Discovery
+- Execution
+- Exfiltration
+- LateralMovement
+- Persistence
+- PrivilegeEscalation
+- Impact
+incident_configuration:
+  create_incident: true
+  grouping_configuration:
+    enabled: false
+    reopen_closed_incident: false
+    lookback_duration: PT5H
+    matching_method: AllEntities
+    group_by_entities: []
+    group_by_alert_details: []
+    group_by_custom_details: []
