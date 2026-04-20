@@ -8,7 +8,10 @@ siem_type: splunk
 siem_query: |
   index=edr sourcetype=process
   process_name=powershell.exe
-  (command_line="*Net.WebClient*" OR command_line="*Invoke-WebRequest*" OR command_line="*IEX(*")
+  (command_line="*Net.WebClient*DownloadString*"
+   OR command_line="*Invoke-WebRequest*-OutFile*"
+   OR command_line="*IEX(New-Object*")
+  | where NOT match(parent_process_name, "^(devenv|code|cursor)\.exe$")
   | stats count by host, user, command_line
 status: active
 criticality: HIGH
