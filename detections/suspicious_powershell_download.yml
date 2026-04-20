@@ -1,0 +1,17 @@
+title: Suspicious PowerShell Download Cradle
+description: |
+  Detects PowerShell processes invoking common download cradles
+  (Net.WebClient, Invoke-WebRequest, IEX) which are a high-signal
+  precursor to staged payload execution.
+technique_id: T1059.001
+siem_type: splunk
+siem_query: |
+  index=edr sourcetype=process
+  process_name=powershell.exe
+  (command_line="*Net.WebClient*" OR command_line="*Invoke-WebRequest*" OR command_line="*IEX(*")
+  | stats count by host, user, command_line
+status: active
+criticality: HIGH
+owner: blue-team@example.com
+notes: Seeded from PurveX DaC demo. Tune thresholds per environment.
+lifecycle_stage: validate
