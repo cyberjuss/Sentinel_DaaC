@@ -14,7 +14,7 @@ siem_query: |
   | where NOT match(parent_process_name, "^(devenv|code|cursor)\.exe$")
   | stats count by host, user, command_line
 status: active
-criticality: HIGH
+criticality: CRITICAL
 owner: blue-team@example.com
 notes: Seeded from PurveX DaC demo. Tune thresholds per environment.
 lifecycle_stage: validate
